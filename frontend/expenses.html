@@ -178,7 +178,8 @@
         ]);
         document.getElementById('expStatMonth').textContent = formatMoney(monthSum.total || 0);
         document.getElementById('expStatYear').textContent  = formatMoney(yearSum.total  || 0);
-        const todayTotal = (daySum||[]).reduce((s,r) => s + +r.amount, 0);
+        const dayList    = Array.isArray(daySum) ? daySum : [];
+        const todayTotal = dayList.reduce((s, r) => s + (+r.amount || 0), 0);
         document.getElementById('expStatToday').textContent = formatMoney(todayTotal);
 
         // Top category
@@ -195,10 +196,11 @@
       const to   = document.getElementById('dateTo').value;
       const cat  = document.getElementById('catFilter').value;
 
-      let url = '/api/expenses?';
-      if (from) url += `from=${from}&`;
-      if (to)   url += `to=${to}&`;
-      if (cat)  url += `category=${cat}&`;
+      const params = new URLSearchParams();
+if (from) params.set('from', from);
+if (to)   params.set('to', to);
+if (cat)  params.set('category', cat);
+const url = '/api/expenses' + (params.toString() ? '?' + params.toString() : '');
 
       try {
         const data = await api('GET', url);

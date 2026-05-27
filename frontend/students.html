@@ -151,8 +151,8 @@ allStudents = Array.isArray(res) ? res : (res.students || res.data || []);
           <td>${s.contact_1 || '—'}</td>
           <td>
             <button class="btn btn-outline btn-sm" onclick="editStudent(${s.student_id})">Edit</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.student_id}, '${s.first_name} ${s.last_name}')">Delete</button>
-          </td>
+            <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.student_id})">Delete</button>
+            </td>
         </tr>`).join('');
     }
 
@@ -222,9 +222,11 @@ allStudents = Array.isArray(res) ? res : (res.students || res.data || []);
       } catch(e) { showToast(e.message, 'error'); }
     }
 
-    async function deleteStudent(id, name) {
-      if (!confirm(`Delete student "${name}"? This cannot be undone.`)) return;
-      try {
+    async function deleteStudent(id) {
+  const s = allStudents.find(x => x.student_id === id);
+  const name = s ? `${s.first_name} ${s.last_name}` : 'this student';
+  if (!confirm(`Delete student "${name}"? This cannot be undone.`)) return;
+    try {
         await api('DELETE', `/api/students/${id}`);
         showToast('Student deleted.');
         loadStudents();

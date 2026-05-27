@@ -217,10 +217,10 @@ allStudents = Array.isArray(res) ? res : (res.students || res.data || []);
     async function loadStats() {
       try {
         const [feeSum, today] = await Promise.all([
-          api('GET', `/api/fees/summary/monthly?month=${monthStr}`),
+          api('GET', `/api/fees/summary/monthly?month=${document.getElementById('monthFilter').value}`),
           api('GET', `/api/fees/daily?date=${todayStr}`)
         ]);
-        document.getElementById('fStatCollected').textContent = formatMoney(feeSum.total_collected || 0);
+        document.getElementById('fStatCollected').textContent = formatMoney(feeSum.total_paid || 0);
         document.getElementById('fStatDue').textContent = formatMoney(feeSum.total_due || 0);
         document.getElementById('fStatDefaulters').textContent = feeSum.defaulters || 0;
         const todayTotal = (today || []).reduce((s,r) => s + +r.amount_paid, 0);
@@ -237,6 +237,7 @@ allStudents = Array.isArray(res) ? res : (res.students || res.data || []);
         let url = `/api/fees?month=${month}-01`;
         if (cls) url += `&class=${cls}`;
         monthlyData = await api('GET', url);
+        loadStats();
         filterMonthly();
       } catch(e) {
         tbody.innerHTML = '<tr><td colspan="10" class="empty">Failed to load.</td></tr>';
@@ -405,7 +406,8 @@ const data = Array.isArray(res) ? res : (res.payments || []);
       const infoEl = document.getElementById('existingPayInfo');
       if (!id) { infoEl.style.display = 'none'; return; }
       try {
-        const data = await api('GET', `/api/fees/student/${id}`);
+        const res  = await api('GET', `/api/fees/student/${id}`);
+        const data = Array.isArray(res) ? res : (res.payments || []); 
         const existing = data.find(r => r.academic_month && r.academic_month.slice(0,7) === month);
         if (existing) {
           infoEl.style.display = 'block';

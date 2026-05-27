@@ -93,7 +93,7 @@
       monthPicker.appendChild(opt);
     }
 
-    monthPicker.addEventListener('change', loadMonthlySummary);
+  monthPicker.addEventListener('change', () => { loadStats(); loadMonthlySummary(); loadDefaulters(); });
 
     async function loadAll() {
       await Promise.all([
@@ -133,8 +133,9 @@
       const el = document.getElementById('todayFees');
       try {
         const today = new Date().toISOString().slice(0,10);
-        const data = await api('GET', `/api/fees/daily?date=${today}`);
-        if (!data || !data.length) {
+       const raw  = await api('GET', `/api/fees/daily?date=${today}`);
+      const data = Array.isArray(raw) ? raw : [];
+      if (!data.length) {
           el.innerHTML = '<p class="empty">No fee collections today.</p>';
           return;
         }

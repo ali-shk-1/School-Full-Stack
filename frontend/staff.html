@@ -143,7 +143,8 @@
     async function loadStaff() {
       const tbody = document.getElementById('staffTableBody');
       try {
-        allStaff = await api('GET', '/api/staff');
+        const res = await api('GET', '/api/staff');
+        allStaff  = Array.isArray(res) ? res : (res.staff || res.data || []);
         renderTable(allStaff);
       } catch(e) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load.</td></tr>';
@@ -167,7 +168,7 @@
           <td>${formatMoney(s.salary)}</td>
           <td>
             <button class="btn btn-outline btn-sm" onclick="editStaff(${s.staff_id})">Edit</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteStaff(${s.staff_id}, '${s.name}')">Delete</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteStaff(${s.staff_id})">Delete</button>
           </td>
         </tr>`).join('');
     }
@@ -229,8 +230,9 @@
       } catch(e) { showToast(e.message, 'error'); }
     }
 
-    async function deleteStaff(id, name) {
-      if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    async function deleteStaff(id) {
+  const s = allStaff.find(x => x.staff_id === id);
+  if (!confirm(`Delete "${s ? s.name : 'this staff member'}"? This cannot be undone.`)) return;
       try {
         await api('DELETE', `/api/staff/${id}`);
         showToast('Staff deleted.');
