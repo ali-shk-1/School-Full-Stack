@@ -1,3 +1,9 @@
+const cors = require('cors');
+
+app.use(cors({
+  origin: '*'  // we will restrict this after getting Netlify URL
+}));
+
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');

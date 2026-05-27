@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = 'https://school-backend-production-21f8.up.railway.app/';
 
 function getToken() {
   return localStorage.getItem('token');
