@@ -1,7 +1,5 @@
-const cors = require('cors');
-
 app.use(cors({
-  origin: '*'  // we will restrict this after getting Netlify URL
+  origin: process.env.FRONTEND_URL
 }));
 
 require('dotenv').config();
