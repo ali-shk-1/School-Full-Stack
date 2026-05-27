@@ -127,7 +127,8 @@
       const tbody = document.getElementById('studentTableBody');
       try {
         const res = await api('GET', '/api/students');
-allStudents = Array.isArray(res) ? res : (res.students || res.data || []);
+        dbg('students raw', res);
+        allStudents = normalizeList(res, ['students', 'data']);
         renderTable(allStudents);
       } catch(e) {
         tbody.innerHTML = `<tr><td colspan="7" class="empty">Failed to load students.</td></tr>`;

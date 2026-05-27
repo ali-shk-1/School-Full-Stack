@@ -266,7 +266,8 @@
       try {
         await api('POST', '/api/staff/designations', { title });
         document.getElementById('newDesigTitle').value = '';
-        designations = await api('GET', '/api/staff/designations');
+        const _dRaw = await api('GET', '/api/staff/designations');
+        designations = normalizeList(_dRaw, ['designations', 'data']);
         renderDesigList();
         showToast('Designation added.');
       } catch(e) { showToast(e.message, 'error'); }
@@ -275,7 +276,8 @@
       if (!confirm(`Remove designation "${title}"?`)) return;
       try {
         await api('DELETE', `/api/staff/designations/${id}`);
-        designations = await api('GET', '/api/staff/designations');
+        const _dRaw = await api('GET', '/api/staff/designations');
+        designations = normalizeList(_dRaw, ['designations', 'data']);
         renderDesigList();
         showToast('Designation removed.');
       } catch(e) { showToast(e.message, 'error'); }

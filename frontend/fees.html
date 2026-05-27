@@ -198,7 +198,7 @@
     async function loadStudents() {
       try {
         const res = await api('GET', '/api/students');
-allStudents = Array.isArray(res) ? res : (res.students || res.data || []);
+        allStudents = normalizeList(res, ['students', 'data']);
         // Populate payment modal dropdown
         const sel = document.getElementById('payStudentSel');
         sel.innerHTML = '<option value="">Select student…</option>';
@@ -217,11 +217,12 @@ allStudents = Array.isArray(res) ? res : (res.students || res.data || []);
     async function loadStats() {
       try {
         const [feeSum, today] = await Promise.all([
-          api('GET', `/api/fees/summary/monthly?month=${document.getElementById('monthFilter').value}`),
+        api('GET', `/api/fees/summary/monthly?month=${document.getElementById('monthFilter').value}-01`),
           api('GET', `/api/fees/daily?date=${todayStr}`)
         ]);
-        document.getElementById('fStatCollected').textContent = formatMoney(feeSum.total_paid || 0);
-        document.getElementById('fStatDue').textContent = formatMoney(feeSum.total_due || 0);
+        dbg('fee summary', feeSum);
+        document.getElementById('fStatCollected').textContent = formatMoney(feeSum.total_paid || feeSum.total_collected || 0);
+        document.getElementById('fStatDue').textContent = formatMoney(feeSum.total_due || feeSum.total_amount_due || 0);  
         document.getElementById('fStatDefaulters').textContent = feeSum.defaulters || 0;
         const todayTotal = (today || []).reduce((s,r) => s + +r.amount_paid, 0);
         document.getElementById('fStatToday').textContent = formatMoney(todayTotal);
@@ -236,7 +237,9 @@ allStudents = Array.isArray(res) ? res : (res.students || res.data || []);
       try {
         let url = `/api/fees?month=${month}-01`;
         if (cls) url += `&class=${cls}`;
-        monthlyData = await api('GET', url);
+        const raw = await api('GET', url);
+        dbg('fees monthly raw', raw);
+        monthlyData = normalizeList(raw, ['fees', 'payments', 'data']);
         loadStats();
         filterMonthly();
       } catch(e) {
@@ -289,9 +292,10 @@ allStudents = Array.isArray(res) ? res : (res.students || res.data || []);
       tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
       const date = document.getElementById('dailyDateFilter').value;
       try {
-        const data = await api('GET', `/api/fees/daily?date=${date}`);
-        if (!data || !data.length) {
-          tbody.innerHTML = '<tr><td colspan="6" class="empty">No payments on this date.</td></tr>';
+        const raw  = await api('GET', `/api/fees/daily?date=${date}`);
+        const data = normalizeList(raw, ['payments', 'data']);
+        if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No payments on this date.</td></tr>';
           totalEl.textContent = '';
           return;
         }
@@ -315,9 +319,10 @@ allStudents = Array.isArray(res) ? res : (res.students || res.data || []);
       tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
       const month = document.getElementById('defaulterMonthFilter').value;
       try {
-        const data = await api('GET', `/api/fees/defaulters?month=${month + '-01'}`);
-        if (!data || !data.length) {
-          tbody.innerHTML = '<tr><td colspan="8" class="empty">No defaulters. 🎉</td></tr>'; return;
+       const raw  = await api('GET', `/api/fees/defaulters?month=${month + '-01'}`);
+      const data = normalizeList(raw, ['defaulters', 'data']);
+      if (!data.length) {
+     tbody.innerHTML = '<tr><td colspan="8" class="empty">No defaulters. 🎉</td></tr>'; return;
         }
         tbody.innerHTML = data.map(r => `
           <tr>
@@ -341,8 +346,9 @@ allStudents = Array.isArray(res) ? res : (res.students || res.data || []);
       if (!id) { tbody.innerHTML = '<tr><td colspan="6" class="empty">Select a student above.</td></tr>'; return; }
       tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
       try {
-        const res = await api('GET', `/api/fees/student/${id}`);
-const data = Array.isArray(res) ? res : (res.payments || []);
+        const res  = await api('GET', `/api/fees/student/${id}`);
+        dbg('student history raw', res);
+        const data = normalizeList(res, ['payments', 'fees', 'data']);
         if (!data || !data.length) {
           tbody.innerHTML = '<tr><td colspan="6" class="empty">No payment history.</td></tr>';
           totalEl.textContent = '';
@@ -406,8 +412,8 @@ const data = Array.isArray(res) ? res : (res.payments || []);
       const infoEl = document.getElementById('existingPayInfo');
       if (!id) { infoEl.style.display = 'none'; return; }
       try {
-        const res  = await api('GET', `/api/fees/student/${id}`);
-        const data = Array.isArray(res) ? res : (res.payments || []); 
+        const res      = await api('GET', `/api/fees/student/${id}`);
+        const data     = normalizeList(res, ['payments', 'fees', 'data']);
         const existing = data.find(r => r.academic_month && r.academic_month.slice(0,7) === month);
         if (existing) {
           infoEl.style.display = 'block';

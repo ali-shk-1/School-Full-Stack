@@ -157,7 +157,9 @@
 
     async function loadCategories() {
       try {
-        categories = await api('GET', '/api/expenses/categories');
+        const catRaw = await api('GET', '/api/expenses/categories');
+        dbg('categories raw', catRaw);
+        categories = normalizeList(catRaw, ['categories', 'data']);
         const sel  = document.getElementById('expCategory');
         const fsel = document.getElementById('catFilter');
         sel.innerHTML  = '<option value="">Select category…</option>';
@@ -171,14 +173,17 @@
 
     async function loadStats() {
       try {
-        const [monthSum, yearSum, daySum] = await Promise.all([
-          api('GET', `/api/expenses/summary/monthly?month=${todayStr.slice(0,7)}`),
-          api('GET', `/api/expenses/summary/yearly?year=${todayStr.slice(0,4)}`),
-          api('GET', `/api/expenses?from=${todayStr}&to=${todayStr}`)
+        const [monthSum, yearSum, daySumRaw] = await Promise.all([
+        api('GET', `/api/expenses/summary/monthly?month=${todayStr.slice(0,7)}`),
+        api('GET', `/api/expenses/summary/yearly?year=${todayStr.slice(0,4)}`),
+        api('GET', `/api/expenses?from=${todayStr}&to=${todayStr}`)
         ]);
-        document.getElementById('expStatMonth').textContent = formatMoney(monthSum.total || 0);
-        document.getElementById('expStatYear').textContent  = formatMoney(yearSum.total  || 0);
-        const dayList    = Array.isArray(daySum) ? daySum : [];
+        dbg('monthSum', monthSum); dbg('yearSum', yearSum);
+        const monthTotal = monthSum?.total ?? monthSum?.total_amount ?? 0;
+        const yearTotal  = yearSum?.total  ?? yearSum?.total_amount  ?? 0;
+        document.getElementById('expStatMonth').textContent = formatMoney(monthTotal);
+        document.getElementById('expStatYear').textContent  = formatMoney(yearTotal);
+        const dayList    = normalizeList(daySumRaw, ['expenses','data']);
         const todayTotal = dayList.reduce((s, r) => s + (+r.amount || 0), 0);
         document.getElementById('expStatToday').textContent = formatMoney(todayTotal);
 
@@ -203,9 +208,11 @@ if (cat)  params.set('category', cat);
 const url = '/api/expenses' + (params.toString() ? '?' + params.toString() : '');
 
       try {
-        const data = await api('GET', url);
-        if (!data || !data.length) {
-          tbody.innerHTML = '<tr><td colspan="5" class="empty">No expenses found.</td></tr>';
+      const raw  = await api('GET', url);
+      dbg('expenses raw', raw);
+      const data = normalizeList(raw, ['expenses', 'data', 'results']);
+      if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No expenses found.</td></tr>';
           document.getElementById('expTotal').textContent = '';
           renderCatBreakdown([]);
           return;
@@ -344,7 +351,8 @@ const url = '/api/expenses' + (params.toString() ? '?' + params.toString() : '')
       try {
         await api('POST', '/api/expenses/categories', { category_name: name });
         document.getElementById('newCatName').value = '';
-        categories = await api('GET', '/api/expenses/categories');
+        const _catRaw = await api('GET', '/api/expenses/categories');
+        categories = normalizeList(_catRaw, ['categories', 'data']);
         renderCatList();
         showToast('Category added.');
       } catch(e) { showToast(e.message, 'error'); }
@@ -353,7 +361,8 @@ const url = '/api/expenses' + (params.toString() ? '?' + params.toString() : '')
       if (!confirm(`Remove category "${name}"?`)) return;
       try {
         await api('DELETE', `/api/expenses/categories/${id}`);
-        categories = await api('GET', '/api/expenses/categories');
+        const _catRaw = await api('GET', '/api/expenses/categories');
+        categories = normalizeList(_catRaw, ['categories', 'data']);
         renderCatList();
         showToast('Category removed.');
       } catch(e) { showToast(e.message, 'error'); }
