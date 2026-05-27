@@ -171,29 +171,42 @@
       } catch(e) { console.error(e); }
     }
 
-    async function loadStats() {
-      try {
-        const [monthSum, yearSum, daySumRaw] = await Promise.all([
-        api('GET', `/api/expenses/summary/monthly?month=${todayStr.slice(0,7)}`),
-        api('GET', `/api/expenses/summary/yearly?year=${todayStr.slice(0,4)}`),
-        api('GET', `/api/expenses?from=${todayStr}&to=${todayStr}`)
-        ]);
-        dbg('monthSum', monthSum); dbg('yearSum', yearSum);
-        const monthTotal = monthSum?.total ?? monthSum?.total_amount ?? 0;
-        const yearTotal  = yearSum?.total  ?? yearSum?.total_amount  ?? 0;
-        document.getElementById('expStatMonth').textContent = formatMoney(monthTotal);
-        document.getElementById('expStatYear').textContent  = formatMoney(yearTotal);
-        const dayList    = normalizeList(daySumRaw, ['expenses','data']);
-        const todayTotal = dayList.reduce((s, r) => s + (+r.amount || 0), 0);
-        document.getElementById('expStatToday').textContent = formatMoney(todayTotal);
+async function loadStats() {
+  try {
+    const now = new Date();
+    const yearStart = now.getFullYear() + '-01-01';
 
-        // Top category
-        if (monthSum.by_category && monthSum.by_category.length) {
-          document.getElementById('expStatTopCat').textContent = monthSum.by_category[0].category_name;
-        }
-      } catch(e) {}
+    const [monthData, todayData, yearData] = await Promise.all([
+      api('GET', `/api/expenses?from=${monthStart}&to=${monthEnd}`),
+      api('GET', `/api/expenses?from=${todayStr}&to=${todayStr}`),
+      api('GET', `/api/expenses?from=${yearStart}&to=${todayStr}`)
+    ]);
+
+    const monthList = normalizeList(monthData, ['expenses', 'data']);
+    const todayList = normalizeList(todayData, ['expenses', 'data']);
+    const yearList  = normalizeList(yearData,  ['expenses', 'data']);
+
+    const sum = arr => arr.reduce((s, r) => s + (+r.amount || 0), 0);
+
+    document.getElementById('expStatMonth').textContent = formatMoney(sum(monthList));
+    document.getElementById('expStatToday').textContent = formatMoney(sum(todayList));
+    document.getElementById('expStatYear').textContent  = formatMoney(sum(yearList));
+
+    // Top category from this month's data
+    if (monthList.length) {
+      const map = {};
+      monthList.forEach(r => {
+        const k = r.category_name || 'Uncategorized';
+        map[k] = (map[k] || 0) + (+r.amount || 0);
+      });
+      const top = Object.entries(map).sort((a, b) => b[1] - a[1])[0];
+      document.getElementById('expStatTopCat').textContent = top ? top[0] : '—';
     }
 
+  } catch(e) {
+    console.error('loadStats error:', e); // never leave catch empty!
+  }
+}
     async function loadExpenses() {
       const tbody = document.getElementById('expTableBody');
       tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading…</td></tr>';

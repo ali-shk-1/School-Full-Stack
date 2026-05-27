@@ -117,36 +117,42 @@
     }
 
     // ── Stats cards ───────────────────────────────────────────────────────────
-    async function loadStats() {
+ async function loadStats() {
   try {
-    const month = monthPicker.value;           // "2026-05"
-    const monthDate = month + '-01';           // "2026-05-01"  ← fixes fees 500 error
-    const monthEnd  = month + '-31';           // close enough for range
+    const month = monthPicker.value;
+    const monthDate = month + '-01';
+    // Use the last day of the month for the range query
+    const monthEnd = new Date(month.split('-')[0], month.split('-')[1], 0).toISOString().slice(0, 10);
 
-    const [studentsRes, staffRes, feeSum, expList] = await Promise.allSettled([
+    const results = await Promise.allSettled([
       api('GET', '/api/students'),
       api('GET', '/api/staff'),
       api('GET', `/api/fees/summary/monthly?month=${monthDate}`),
-      api('GET', `/api/expenses?from=${monthDate}&to=${monthEnd}`)  // ← no summary route, use list
+      // Use the range query that is confirmed to work
+      api('GET', `/api/expenses?from=${monthDate}&to=${monthEnd}`)
     ]);
 
-    // Students
+    const studentsRes = results[0];
+    const staffRes = results[1];
+    const feeSumRes = results[2];
+    const expListRes = results[3];
+
+    // Students & Staff
     if (studentsRes.status === 'fulfilled')
       document.getElementById('statStudents').textContent = toList(studentsRes.value).length;
-
-    // Staff
+    
     if (staffRes.status === 'fulfilled')
       document.getElementById('statStaff').textContent = toList(staffRes.value).length;
 
-    // Fee collected — log what comes back so we can see field names
-    const feeSumVal = feeSum.status === 'fulfilled' ? feeSum.value : null;
-    console.log('[DBG] feeSumVal:', JSON.stringify(feeSumVal));
+    // Fees
+    const feeSumVal = feeSumRes.status === 'fulfilled' ? feeSumRes.value : null;
     const collected = +(feeSumVal?.total_paid ?? feeSumVal?.total_collected ?? feeSumVal?.total ?? 0);
     document.getElementById('statFeeMonth').textContent = formatMoney(collected);
 
-    // Expenses — sum the list ourselves
-    const expData = expList.status === 'fulfilled' ? normalizeList(expList.value, ['expenses','data']) : [];
-    console.log('[DBG] expData length:', expData.length, 'sample:', JSON.stringify(expData[0]));
+    // Expenses: Safely normalize the response
+    const rawExp = expListRes.status === 'fulfilled' ? expListRes.value : {};
+    const expData = toList(rawExp); // Use your helper to extract the array
+    
     const expenses = expData.reduce((s, r) => s + (+r.amount || 0), 0);
     document.getElementById('statExpMonth').textContent = formatMoney(expenses);
 
@@ -156,7 +162,7 @@
     balEl.textContent = formatMoney(balance);
     balEl.style.color = balance >= 0 ? '#2d7a4f' : '#c0392b';
 
-  } catch(e) { console.error('loadStats:', e); }
+  } catch(e) { console.error('loadStats error:', e); }
 }
 
     // ── Today's Collections ───────────────────────────────────────────────────

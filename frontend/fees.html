@@ -215,19 +215,27 @@
     }
 
     async function loadStats() {
-      try {
-        const [feeSum, today] = await Promise.all([
-        api('GET', `/api/fees/summary/monthly?month=${document.getElementById('monthFilter').value}-01`),
-          api('GET', `/api/fees/daily?date=${todayStr}`)
-        ]);
-        dbg('fee summary', feeSum);
-        document.getElementById('fStatCollected').textContent = formatMoney(feeSum.total_paid || feeSum.total_collected || 0);
-        document.getElementById('fStatDue').textContent = formatMoney(feeSum.total_due || feeSum.total_amount_due || 0);  
-        document.getElementById('fStatDefaulters').textContent = feeSum.defaulters || 0;
-        const todayTotal = (today || []).reduce((s,r) => s + +r.amount_paid, 0);
-        document.getElementById('fStatToday').textContent = formatMoney(todayTotal);
-      } catch(e) {}
-    }
+  try {
+    const month = document.getElementById('monthFilter').value;
+    const [feeSum, todayFees, defaultersRes] = await Promise.all([
+      api('GET', `/api/fees/summary/monthly?month=${month}-01`),
+      api('GET', `/api/fees/daily?date=${todayStr}`),
+      api('GET', `/api/fees/defaulters?month=${month}-01`)   // ← add this
+    ]);
+
+    document.getElementById('fStatCollected').textContent = formatMoney(feeSum.total_paid || 0);
+    document.getElementById('fStatDue').textContent       = formatMoney(feeSum.total_due  || 0);
+
+    // ✅ read from the actual defaulters response
+    const defaulterCount = defaultersRes?.count ?? normalizeList(defaultersRes, ['defaulters']).length;
+    document.getElementById('fStatDefaulters').textContent = defaulterCount;
+
+    const todayTotal = normalizeList(todayFees, ['payments','data'])
+      .reduce((s, r) => s + (+r.amount_paid || 0), 0);
+    document.getElementById('fStatToday').textContent = formatMoney(todayTotal);
+
+  } catch(e) { console.error('loadStats error:', e); }  // never leave catch empty
+}
 
     async function loadMonthlyRecords() {
       const tbody = document.getElementById('monthlyBody');
