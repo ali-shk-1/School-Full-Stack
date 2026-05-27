@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard — School Management</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Dashboard</h1>
+      <span id="todayDate" style="color:#888;font-size:13px;"></span>
+    </div>
+
+    <!-- Stats Row 1 -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card"><div class="label">Total Students</div><div class="value" id="statStudents">—</div></div>
+      <div class="stat-card"><div class="label">Total Staff</div><div class="value" id="statStaff">—</div></div>
+      <div class="stat-card"><div class="label">Fee Collected (Month)</div><div class="value" id="statFeeMonth">—</div></div>
+      <div class="stat-card"><div class="label">Expenses (Month)</div><div class="value" id="statExpMonth">—</div></div>
+      <div class="stat-card"><div class="label">Balance (Month)</div><div class="value" id="statBalance">—</div></div>
+    </div>
+
+    <!-- Fee Status -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+
+      <!-- Today's Fee Collections -->
+      <div class="card">
+        <div class="section-title">Today's Fee Collections</div>
+        <div id="todayFees" class="loading">Loading…</div>
+      </div>
+
+      <!-- Fee Defaulters this month -->
+      <div class="card">
+        <div class="section-title">Fee Defaulters — This Month</div>
+        <div id="defaultersList" class="loading">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Monthly Summary -->
+    <div class="card">
+      <div class="section-title">Monthly Fee Summary</div>
+      <div class="filters" style="margin-bottom:12px;">
+        <select id="monthPicker"></select>
+      </div>
+      <div class="table-wrap">
+        <table id="monthlySummaryTable">
+          <thead>
+            <tr>
+              <th>Student</th><th>Class</th><th>Section</th>
+              <th>Amount Due</th><th>Amount Paid</th><th>Status</th><th>Payment Date</th>
+            </tr>
+          </thead>
+          <tbody id="monthlySummaryBody">
+            <tr><td colspan="7" class="loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Recent Expenses -->
+    <div class="card">
+      <div class="section-title">Recent Expenses (Last 10)</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th></tr></thead>
+          <tbody id="recentExpenses"><tr><td colspan="4" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /page -->
+
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+  <script>
+    checkAuth();
+    renderNav('dashboard');
+    document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+    // Populate month picker: last 12 months
+    const monthPicker = document.getElementById('monthPicker');
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = d.toISOString().slice(0, 7);
+      const label = d.toLocaleDateString('en-GB', { month:'long', year:'numeric' });
+      const opt = new Option(label, val);
+      if (i === 0) opt.selected = true;
+      monthPicker.appendChild(opt);
+    }
+
+    monthPicker.addEventListener('change', loadMonthlySummary);
+
+    async function loadAll() {
+      await Promise.all([
+        loadStats(),
+        loadTodayFees(),
+        loadDefaulters(),
+        loadMonthlySummary(),
+        loadRecentExpenses()
+      ]);
+    }
+
+    async function loadStats() {
+      try {
+        const [students, staff, feeSum, expSum] = await Promise.all([
+          api('GET', '/api/students'),
+          api('GET', '/api/staff'),
+          api('GET', `/api/fees/summary/monthly?month=${monthPicker.value}`),
+          api('GET', `/api/expenses/summary/monthly?month=${monthPicker.value}`)
+        ]);
+
+        document.getElementById('statStudents').textContent = students.length || 0;
+        document.getElementById('statStaff').textContent = staff.length || 0;
+
+        const collected = feeSum.total_paid || 0;
+        const expenses  = expSum.total || 0;
+        const balance   = collected - expenses;
+
+        document.getElementById('statFeeMonth').textContent = formatMoney(collected);
+        document.getElementById('statExpMonth').textContent = formatMoney(expenses);
+        const balEl = document.getElementById('statBalance');
+        balEl.textContent = formatMoney(balance);
+        balEl.style.color = balance >= 0 ? '#2d7a4f' : '#c0392b';
+      } catch(e) { console.error('Stats error', e); }
+    }
+
+    async function loadTodayFees() {
+      const el = document.getElementById('todayFees');
+      try {
+        const today = new Date().toISOString().slice(0,10);
+        const data = await api('GET', `/api/fees/daily?date=${today}`);
+        if (!data || !data.length) {
+          el.innerHTML = '<p class="empty">No fee collections today.</p>';
+          return;
+        }
+        el.innerHTML = `
+          <table><thead><tr><th>Student</th><th>Class</th><th>Amount Paid</th></tr></thead>
+          <tbody>${data.map(r => `
+            <tr>
+              <td>${r.first_name} ${r.last_name}</td>
+              <td>${r.class}-${r.section}</td>
+              <td class="fee-paid">${formatMoney(r.amount_paid)}</td>
+            </tr>`).join('')}
+          </tbody></table>
+          <p style="font-size:12px;color:#888;margin-top:8px;">Total: <strong>${formatMoney(data.reduce((s,r)=>s+ +r.amount_paid,0))}</strong></p>
+        `;
+      } catch(e) { el.innerHTML = '<p class="empty">Could not load.</p>'; }
+    }
+
+    async function loadDefaulters() {
+      const el = document.getElementById('defaultersList');
+      try {
+        const month = monthPicker.value + '-01';
+        const data = await api('GET', `/api/fees/defaulters?month=${month}`);
+        if (!data || !data.length) {
+          el.innerHTML = '<p class="empty">No defaulters this month. 🎉</p>';
+          return;
+        }
+        el.innerHTML = `
+          <table><thead><tr><th>Student</th><th>Class</th><th>Due</th><th>Paid</th></tr></thead>
+          <tbody>${data.slice(0,8).map(r => `
+            <tr>
+              <td>${r.first_name} ${r.last_name}</td>
+              <td>${r.class}-${r.section}</td>
+              <td class="fee-unpaid">${formatMoney(r.amount_due)}</td>
+              <td>${formatMoney(r.amount_paid)}</td>
+            </tr>`).join('')}
+          </tbody></table>
+          ${data.length > 8 ? `<p style="font-size:12px;color:#888;margin-top:6px;">+${data.length-8} more — <a href="fees.html">View all</a></p>` : ''}
+        `;
+      } catch(e) { el.innerHTML = '<p class="empty">Could not load.</p>'; }
+    }
+
+    async function loadMonthlySummary() {
+      const tbody = document.getElementById('monthlySummaryBody');
+      tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+      // Also reload stats with new month
+      loadStats();
+      try {
+        const month = monthPicker.value + '-01';
+        const data = await api('GET', `/api/fees?month=${month}`);
+        if (!data || !data.length) {
+          tbody.innerHTML = '<tr><td colspan="7" class="empty">No records for this month.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.map(r => {
+          const due  = +r.amount_due  || 0;
+          const paid = +r.amount_paid || 0;
+          let status, cls;
+          if (paid >= due)      { status = 'Paid';    cls = 'badge-success'; }
+          else if (paid > 0)    { status = 'Partial'; cls = 'badge-warning'; }
+          else                  { status = 'Unpaid';  cls = 'badge-danger';  }
+          return `<tr>
+            <td>${r.first_name} ${r.last_name}</td>
+            <td>${r.class}</td><td>${r.section}</td>
+            <td>${formatMoney(due)}</td>
+            <td>${formatMoney(paid)}</td>
+            <td><span class="badge ${cls}">${status}</span></td>
+            <td>${r.payment_date ? formatDate(r.payment_date) : '—'}</td>
+          </tr>`;
+        }).join('');
+      } catch(e) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Could not load.</td></tr>'; }
+    }
+
+    async function loadRecentExpenses() {
+      const tbody = document.getElementById('recentExpenses');
+      try {
+        const data = await api('GET', '/api/expenses?limit=10');
+        if (!data || !data.length) {
+          tbody.innerHTML = '<tr><td colspan="4" class="empty">No expenses yet.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.map(r => `
+          <tr>
+            <td>${formatDate(r.created_at)}</td>
+            <td>${r.category_name || '—'}</td>
+            <td>${r.description || '—'}</td>
+            <td>${formatMoney(r.amount)}</td>
+          </tr>`).join('');
+      } catch(e) { tbody.innerHTML = '<tr><td colspan="4" class="empty">Could not load.</td></tr>'; }
+    }
+
+    loadAll();
+  </script>
+</body>
+</html>

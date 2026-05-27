@@ -1,0 +1,75 @@
+-- 1. Students Table
+CREATE TABLE students (
+    student_id SERIAL PRIMARY KEY,
+    roll_no INT NOT NULL,
+    section VARCHAR(10) NOT NULL,
+    class VARCHAR(10) NOT NULL,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    father_name VARCHAR(100),
+    contact_1 VARCHAR(15),
+    contact_2 VARCHAR(15),
+    address TEXT,
+    UNIQUE(roll_no, section, class)
+);
+
+-- 2. Designations Table
+CREATE TABLE designations (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(50)
+);
+
+-- 3. Staff Table
+CREATE TABLE staff (
+    staff_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    staff_code VARCHAR(20) NOT NULL,
+    cnic VARCHAR(15) UNIQUE NOT NULL,
+    phone_no VARCHAR(15),
+    salary DECIMAL(12, 2),
+    designation_id INT REFERENCES designations(id),
+    UNIQUE(name, staff_code)
+);
+
+-- 4. Fee Payments
+CREATE TABLE fee_payments (
+    payment_id SERIAL PRIMARY KEY,
+    student_id INT REFERENCES students(student_id),
+    academic_month DATE NOT NULL,
+    amount_due DECIMAL(10, 2),
+    amount_paid DECIMAL(10, 2) DEFAULT 0,
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. Expense Categories
+CREATE TABLE expense_categories (
+    category_id SERIAL PRIMARY KEY,
+    category_name VARCHAR(50)
+);
+
+-- 6. Expenses
+CREATE TABLE expenses (
+    expense_id SERIAL PRIMARY KEY,
+    category_id INT REFERENCES expense_categories(category_id),
+    amount DECIMAL(12, 2) NOT NULL,
+    description TEXT,
+    created_at DATE DEFAULT CURRENT_DATE
+);
+
+-- 7. Roles Table (optional but recommended for scalability)
+CREATE TABLE roles (
+    role_id SERIAL PRIMARY KEY,
+    role_name VARCHAR(20) UNIQUE NOT NULL  -- 'admin', 'teacher', 'accountant'
+);
+
+-- 8. User Accounts Table
+CREATE TABLE users (
+    user_id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,         -- bcrypt hash, NEVER plain text
+    role_id INT REFERENCES roles(role_id),
+    staff_id INT UNIQUE REFERENCES staff(staff_id),  -- links account to a staff member
+    is_active BOOLEAN DEFAULT TRUE,              -- disable without deleting
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP                         -- update on each login
+);
