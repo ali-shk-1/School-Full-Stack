@@ -1,15 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { withAuth } from '@/lib/auth'
-
-function normalizeMonthInput(value: string | null): string {
-  if (!value) return `${new Date().toISOString().slice(0, 7)}-01`
-  let raw = value.trim()
-  if (/^\d{4}-\d{2}-\d{2}-01$/.test(raw)) raw = raw.slice(0, -3)
-  if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`
-  return raw
-}
-
 export const GET = withAuth(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url)
   const month = normalizeMonthInput(searchParams.get('month'))
@@ -26,7 +14,17 @@ export const GET = withAuth(async (req: NextRequest) => {
     GROUP BY academic_month
   `
 
+  const row = rows[0]
+
   return NextResponse.json(
-    rows[0] || { month_label: null, payment_count: 0, total_due: 0, total_paid: 0, total_balance: 0 }
+    row
+      ? {
+          month_label: row.month_label,
+          payment_count: Number(row.payment_count),
+          total_due: Number(row.total_due),
+          total_paid: Number(row.total_paid),
+          total_balance: Number(row.total_balance),
+        }
+      : { month_label: null, payment_count: 0, total_due: 0, total_paid: 0, total_balance: 0 }
   )
 })

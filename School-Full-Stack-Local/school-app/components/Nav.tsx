@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getUser, logout } from '@/lib/api'
@@ -16,7 +16,11 @@ const pages = [
 export default function Nav() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
-  const user = getUser()
+  const [username, setUsername] = useState('')
+
+  useEffect(() => {
+    setUsername(getUser().username || '')
+  }, [])
 
   return (
     <nav className="navbar">
@@ -40,7 +44,7 @@ export default function Nav() {
       </nav>
 
       <div className="nav-right" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ color: '#aaa', fontSize: '13px' }}>{user.username || ''}</span>
+        <span style={{ color: '#aaa', fontSize: '13px' }}>{username}</span>
         <button className="logout-btn" onClick={logout}>Logout</button>
       </div>
     </nav>
