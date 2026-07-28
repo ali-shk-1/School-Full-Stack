@@ -123,6 +123,11 @@ router.get('/summary/yearly', async (req, res, next) => {
 /* ─────────────────────────────────────────
    GET /api/fees/defaulters
    Query: ?month=YYYY-MM  — students with outstanding balance
+   A student only counts as a defaulter for months on/after their
+   admission_date. If a month has no fee record yet, their most
+   recently known amount_due is carried forward as the expected due
+   amount, so "never billed this month" still shows up as unpaid —
+   not just "billed but underpaid".
 ───────────────────────────────────────── */
 router.get('/defaulters', async (req, res, next) => {
   try {
@@ -131,18 +136,30 @@ router.get('/defaulters', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT
          s.student_id, s.roll_no, s.first_name, s.last_name,
-         s.class, s.section, s.contact_1,
-         fp.amount_due, fp.amount_paid,
-         (fp.amount_due - fp.amount_paid) AS balance,
+         s.class, s.section, s.contact_1, s.father_name, s.admission_date,
+         COALESCE(fp.amount_due, prev.amount_due, 0)                        AS amount_due,
+         COALESCE(fp.amount_paid, 0)                                        AS amount_paid,
+         COALESCE(fp.amount_due, prev.amount_due, 0) - COALESCE(fp.amount_paid, 0) AS balance,
          fp.payment_date
-       FROM fee_payments fp
-       JOIN students s ON s.student_id = fp.student_id
-       WHERE DATE_TRUNC('month', fp.academic_month) = DATE_TRUNC('month', $1::DATE)
-         AND fp.amount_paid < fp.amount_due
+       FROM students s
+       LEFT JOIN fee_payments fp
+         ON fp.student_id = s.student_id
+         AND DATE_TRUNC('month', fp.academic_month) = DATE_TRUNC('month', $1::DATE)
+       LEFT JOIN LATERAL (
+         SELECT fp2.amount_due
+         FROM fee_payments fp2
+         WHERE fp2.student_id = s.student_id
+           AND fp2.academic_month < DATE_TRUNC('month', $1::DATE)
+         ORDER BY fp2.academic_month DESC
+         LIMIT 1
+       ) prev ON true
+       WHERE s.admission_date <= (DATE_TRUNC('month', $1::DATE) + INTERVAL '1 month' - INTERVAL '1 day')
+         AND COALESCE(fp.amount_due, prev.amount_due, 0) > 0
+         AND COALESCE(fp.amount_paid, 0) < COALESCE(fp.amount_due, prev.amount_due, 0)
        ORDER BY balance DESC`,
       [month]
     );
-    res.json({ count: rows.length, defaulters: rows });
+    res.json({ count: rows.length, month, defaulters: rows });
   } catch (err) { next(err); }
 });
 

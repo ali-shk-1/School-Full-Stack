@@ -45,12 +45,24 @@ router.get('/', async (req, res, next) => {
         [currentMonth]
       ),
 
-      // Fee defaulters count this month
+      // Fee defaulters count this month (admission-date aware, same logic as /api/fees/defaulters)
       pool.query(
         `SELECT COUNT(*) AS total
-         FROM fee_payments
-         WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', $1::DATE)
-           AND amount_paid < amount_due`,
+         FROM students s
+         LEFT JOIN fee_payments fp
+           ON fp.student_id = s.student_id
+           AND DATE_TRUNC('month', fp.academic_month) = DATE_TRUNC('month', $1::DATE)
+         LEFT JOIN LATERAL (
+           SELECT fp2.amount_due
+           FROM fee_payments fp2
+           WHERE fp2.student_id = s.student_id
+             AND fp2.academic_month < DATE_TRUNC('month', $1::DATE)
+           ORDER BY fp2.academic_month DESC
+           LIMIT 1
+         ) prev ON true
+         WHERE s.admission_date <= (DATE_TRUNC('month', $1::DATE) + INTERVAL '1 month' - INTERVAL '1 day')
+           AND COALESCE(fp.amount_due, prev.amount_due, 0) > 0
+           AND COALESCE(fp.amount_paid, 0) < COALESCE(fp.amount_due, prev.amount_due, 0)`,
         [currentMonth]
       ),
 

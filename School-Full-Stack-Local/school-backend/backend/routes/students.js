@@ -68,7 +68,7 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', authorize('admin', 'accountant'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
-            father_name, contact_1, contact_2, address } = req.body;
+            father_name, contact_1, contact_2, address, admission_date } = req.body;
 
     if (!roll_no || !section || !cls || !first_name || !last_name) {
       return res.status(400).json({
@@ -79,11 +79,12 @@ router.post('/', authorize('admin', 'accountant'), async (req, res, next) => {
     const { rows } = await pool.query(
       `INSERT INTO students
          (roll_no, section, class, first_name, last_name,
-          father_name, contact_1, contact_2, address)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          father_name, contact_1, contact_2, address, admission_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        RETURNING *`,
       [roll_no, section, cls, first_name, last_name,
-       father_name || null, contact_1 || null, contact_2 || null, address || null]
+       father_name || null, contact_1 || null, contact_2 || null, address || null,
+       admission_date || new Date().toISOString().slice(0, 10)]
     );
 
     res.status(201).json({ message: 'Student added.', student: rows[0] });
@@ -98,7 +99,7 @@ router.post('/', authorize('admin', 'accountant'), async (req, res, next) => {
 router.put('/:id', authorize('admin', 'accountant'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
-            father_name, contact_1, contact_2, address } = req.body;
+            father_name, contact_1, contact_2, address, admission_date } = req.body;
 
     if (!roll_no || !section || !cls || !first_name || !last_name) {
       return res.status(400).json({
@@ -109,12 +110,13 @@ router.put('/:id', authorize('admin', 'accountant'), async (req, res, next) => {
     const { rows } = await pool.query(
       `UPDATE students SET
          roll_no=$1, section=$2, class=$3, first_name=$4, last_name=$5,
-         father_name=$6, contact_1=$7, contact_2=$8, address=$9
-       WHERE student_id=$10
+         father_name=$6, contact_1=$7, contact_2=$8, address=$9,
+         admission_date=COALESCE($10, admission_date)
+       WHERE student_id=$11
        RETURNING *`,
       [roll_no, section, cls, first_name, last_name,
        father_name || null, contact_1 || null, contact_2 || null, address || null,
-       req.params.id]
+       admission_date || null, req.params.id]
     );
 
     if (rows.length === 0) return res.status(404).json({ error: 'Student not found.' });
